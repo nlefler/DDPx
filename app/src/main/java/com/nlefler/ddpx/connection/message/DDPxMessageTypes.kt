@@ -12,7 +12,9 @@ public class DDPxMessageTypes {
             Pair(DDPxFailedMessage().messageName!!, DDPxFailedMessage::class),
             Pair(DDPxPingMessage().messageName!!, DDPxPingMessage::class),
             Pair(DDPxPongMessage().messageName!!, DDPxPongMessage::class),
-            Pair(DDPxNoSubMessage().messageName!!, DDPxNoSubMessage::class)
+            Pair(DDPxNoSubMessage().messageName!!, DDPxNoSubMessage::class),
+            Pair(DDPxAddedMessage().messageName!!, DDPxAddedMessage::class),
+            Pair(DDPxChangedMessage().messageName!!, DDPxChangedMessage::class)
     )
 
     public fun messageForName(msgType: String): KClass<out DDPxMessage>? {

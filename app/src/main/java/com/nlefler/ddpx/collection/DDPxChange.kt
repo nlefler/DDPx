@@ -8,7 +8,7 @@ public interface DDPxChange {
         Unknown, Added, Changed, Removed
     }
 
-    public var type: DDPxChangeType
-    public var collection: String?
-    public var id: String?
+    public val type: DDPxChangeType
+    public val collection: String
+    public val id: String
 }

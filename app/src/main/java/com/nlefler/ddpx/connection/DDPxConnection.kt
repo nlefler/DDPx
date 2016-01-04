@@ -6,7 +6,9 @@ import bolts.TaskCompletionSource
 import com.google.gson.Gson
 import com.koushikdutta.async.http.AsyncHttpClient
 import com.koushikdutta.async.http.WebSocket
+import com.nlefler.ddpx.collection.DDPxAdded
 import com.nlefler.ddpx.collection.DDPxChange
+import com.nlefler.ddpx.collection.DDPxChanged
 import com.nlefler.ddpx.connection.message.*
 import java.util.*
 
@@ -92,6 +94,7 @@ public class DDPxConnection(val remoteURL: String) {
                 when (msg) {
                     is DDPxPingMessage -> handlePing(msg)
                     is DDPxNoSubMessage -> delegate?.onNoSub(msg.id, msg.error)
+                    is DDPxAddedMessage, is DDPxChangedMessage -> handleChangeMessage(msg)
                 }
             }
             DDPxConnectionState.Disconnected, DDPxConnectionState.Unknown -> {}
@@ -115,8 +118,34 @@ public class DDPxConnection(val remoteURL: String) {
     private fun handlePing(ping: DDPxPingMessage) {
         val pong = DDPxPongMessage()
         pong.id = ping.id
-        websocket?.send(gson.toJson(pong))
-        Log.d(LOG_TAG, "Responded to pong ${pong.id}")
+        websocket?.send(gson.toJson(pong.messageBody()))
+        Log.d(LOG_TAG, "Responded to pong id:${pong.id}")
+    }
+
+    private fun handleChangeMessage(msg: DDPxMessage) {
+
+        when (msg) {
+            is DDPxAddedMessage -> {
+                val collection = msg.collection
+                val id = msg.id
+                if (collection == null || id == null) {
+                    return
+                }
+
+                val add = DDPxAdded(collection, id)
+                delegate?.onChange(add)
+            }
+            is DDPxChangedMessage -> {
+                val collection = msg.collection
+                val id = msg.id
+                if (collection == null || id == null) {
+                    return
+                }
+                val changed = DDPxChanged(collection, id, msg.fields, msg.cleared)
+                delegate?.onChange(changed)
+            }
+            else -> {}
+        }
     }
 
     public enum class DDPxConnectionState {
