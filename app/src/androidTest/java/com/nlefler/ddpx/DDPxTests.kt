@@ -40,7 +40,8 @@ public class DDPxTests: TestCase() {
         val latch = CountDownLatch(1)
 
         ddpx?.connect()?.continueWith { result ->
-            assert_().withFailureMessage(result.error.message).that(result.isFaulted).isFalse()
+            val failureMessage = result.error?.message ?: ""
+            assert_().withFailureMessage(failureMessage).that(result.isFaulted).isFalse()
             latch.countDown()
         }
 
@@ -59,6 +60,7 @@ public class DDPxTests: TestCase() {
             ddpx?.sub("places", null)?.subscribe {object: Observer<DDPxChange> {
                 override fun onNext(t: DDPxChange?) {
                     gotNext = true
+                    latch.countDown()
                 }
 
                 override fun onError(e: Throwable?) {
