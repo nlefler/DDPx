@@ -37,11 +37,16 @@ public class DDPx(val remoteURL: String): DDPxConnection.DDPxConnectionDelegate 
     }
 
     // DDPxConnection.DDPxConnectionDelegate
-    override public fun onNoSub(id: String?, error: DDPxError?) {
+    override public fun onNoSub(id: String, error: DDPxError?) {
 
     }
 
     override public fun onChange(change: DDPxChange) {
 
     }
+
+    override public fun onReady(sub: String) {
+
+    }
+
 }

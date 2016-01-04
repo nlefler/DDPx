@@ -9,6 +9,7 @@ import com.koushikdutta.async.http.WebSocket
 import com.nlefler.ddpx.collection.DDPxAdded
 import com.nlefler.ddpx.collection.DDPxChange
 import com.nlefler.ddpx.collection.DDPxChanged
+import com.nlefler.ddpx.collection.DDPxRemoved
 import com.nlefler.ddpx.connection.message.*
 import java.util.*
 
@@ -93,8 +94,9 @@ public class DDPxConnection(val remoteURL: String) {
             DDPxConnectionState.Connected -> {
                 when (msg) {
                     is DDPxPingMessage -> handlePing(msg)
-                    is DDPxNoSubMessage -> delegate?.onNoSub(msg.id, msg.error)
-                    is DDPxAddedMessage, is DDPxChangedMessage -> handleChangeMessage(msg)
+                    is DDPxNoSubMessage -> handleNoSub(msg)
+                    is DDPxAddedMessage, is DDPxChangedMessage, is DDPxRemovedMessage -> handleChangeMessage(msg)
+                    is DDPxReadyMessage -> msg.subs?.forEach { sub -> delegate?.onReady(sub) }
                 }
             }
             DDPxConnectionState.Disconnected, DDPxConnectionState.Unknown -> {}
@@ -122,6 +124,11 @@ public class DDPxConnection(val remoteURL: String) {
         Log.d(LOG_TAG, "Responded to pong id:${pong.id}")
     }
 
+    private fun handleNoSub(msg: DDPxNoSubMessage) {
+        val id = msg.id ?: return
+        delegate?.onNoSub(id, msg.error)
+    }
+
     private fun handleChangeMessage(msg: DDPxMessage) {
 
         when (msg) {
@@ -144,6 +151,16 @@ public class DDPxConnection(val remoteURL: String) {
                 val changed = DDPxChanged(collection, id, msg.fields, msg.cleared)
                 delegate?.onChange(changed)
             }
+            is DDPxRemovedMessage -> {
+                val collection = msg.collection
+                val id = msg.id
+                if (collection == null || id == null) {
+                    return
+                }
+
+                val removed = DDPxRemoved(collection, id)
+                delegate?.onChange(removed)
+            }
             else -> {}
         }
     }
@@ -153,8 +170,9 @@ public class DDPxConnection(val remoteURL: String) {
     }
 
     public interface DDPxConnectionDelegate {
-        public fun onNoSub(id: String?, error: DDPxError?)
+        public fun onNoSub(id: String, error: DDPxError?)
         public fun onChange(change: DDPxChange)
+        public fun onReady(sub: String)
     }
 }
 

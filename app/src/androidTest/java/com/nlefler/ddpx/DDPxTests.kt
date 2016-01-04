@@ -12,10 +12,11 @@ import kotlin.test.*
  */
 
 public class DDPxTests: TestCase() {
+    val SERVER_URL = "http://10.65.106.103:3000/websocket"//"http://cairo-playground.meteor.com/websocket"
 
     @Test
     fun testInit() {
-        val ddpx = DDPx("http://cairo-playground.meteor.com/websocket")
+        val ddpx = DDPx(SERVER_URL)
         assertThat(ddpx).isNotNull()
     }
 
@@ -23,7 +24,7 @@ public class DDPxTests: TestCase() {
     public fun testConnect() {
         val latch = CountDownLatch(1)
 
-        val ddpx = DDPx("http://cairo-playground.meteor.com/websocket")
+        val ddpx = DDPx(SERVER_URL)
         ddpx.connect().continueWith { result ->
             assertThat(result.isFaulted).isFalse()
             latch.countDown()

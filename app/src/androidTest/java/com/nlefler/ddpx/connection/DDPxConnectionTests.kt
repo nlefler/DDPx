@@ -1,13 +1,14 @@
 package com.nlefler.ddpx.connection
 
 import com.nlefler.ddpx.collection.DDPxChange
-import com.nlefler.ddpx.connection.DDPxConnection
 import org.junit.Test
 import com.google.common.truth.Truth.*
 import com.nlefler.ddpx.connection.message.DDPxError
+import com.nlefler.ddpx.connection.message.DDPxNoSubMessage
 import junit.framework.TestCase
 import org.junit.After
 import org.junit.Before
+import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -15,18 +16,24 @@ import java.util.concurrent.TimeUnit
  * Created by nathan on 1/2/16.
  */
 public class DDPxConnectionTests: TestCase(),  DDPxConnection.DDPxConnectionDelegate {
-    private var noSubLatch: CountDownLatch? = null
+    val SERVER_URL = "http://10.65.106.103:3000/websocket"//"http://cairo-playground.meteor.com/websocket"
+    
+    var noSubBlock: ((String, DDPxError?) -> Unit)? = null
+    var onChangeBlock: ((DDPxChange) -> Unit)? = null
+    var onReadyBlock: ((String) -> Unit)? = null
     var conn: DDPxConnection? = null
 
     @Before
     override public fun setUp() {
-        conn = DDPxConnection("http://cairo-playground.meteor.com/websocket")
+        conn = DDPxConnection(SERVER_URL)
     }
 
     @After
     override public fun tearDown() {
         conn = null
-        noSubLatch = null
+        noSubBlock = null
+        onChangeBlock = null
+        onReadyBlock = null
     }
 
     @Test
@@ -61,7 +68,9 @@ public class DDPxConnectionTests: TestCase(),  DDPxConnection.DDPxConnectionDele
             assertThat(result.isFaulted).isFalse()
             assertThat(conn?.state).isEqualTo(DDPxConnection.DDPxConnectionState.Connected)
 
-            noSubLatch = latch
+            noSubBlock = { id, error ->
+                latch.countDown()
+            }
             conn?.sub("fake", null, "id")
         }
 
@@ -70,7 +79,7 @@ public class DDPxConnectionTests: TestCase(),  DDPxConnection.DDPxConnectionDele
 
     @Test
     public fun testSub() {
-        val latch = CountDownLatch(1)
+        val latch = CountDownLatch(2)
 
         conn?.delegate = this
 
@@ -80,18 +89,40 @@ public class DDPxConnectionTests: TestCase(),  DDPxConnection.DDPxConnectionDele
             assertThat(result.isFaulted).isFalse()
             assertThat(conn?.state).isEqualTo(DDPxConnection.DDPxConnectionState.Connected)
 
-            conn?.sub("places", null, "id")
+            val id = UUID.randomUUID().toString()
+            val collection = "places"
+            onChangeBlock = { change ->
+                assertThat(change.collection).isEqualTo(collection)
+                latch.countDown()
+            }
+            onReadyBlock = { sub ->
+                assertThat(sub).isEqualTo(id)
+                latch.countDown()
+            }
+            conn?.sub(collection, null, id)
         }
 
         latch.await(1000000, TimeUnit.SECONDS)
     }
 
-    override public fun onNoSub(id: String?, error: DDPxError?) {
-        assertThat(id).isNotNull()
-        noSubLatch?.countDown()
+    override public fun onNoSub(id: String, error: DDPxError?) {
+        val block = noSubBlock
+        if (block != null) {
+            block(id, error)
+        }
     }
 
     override public fun onChange(change: DDPxChange) {
+        val block = onChangeBlock
+        if (block != null) {
+            block(change)
+        }
+    }
 
+    override public fun onReady(sub: String) {
+        val block = onReadyBlock
+        if (block != null) {
+            block(sub)
+        }
     }
 }
