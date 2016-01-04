@@ -1,32 +1,66 @@
 package com.nlefler.ddpx.connection
 
-import com.nlefler.ddpx.DDPx
-import junit.framework.TestCase
+import com.nlefler.ddpx.collection.DDPxChange
+import com.nlefler.ddpx.connection.DDPxConnection
 import org.junit.Test
+import com.google.common.truth.Truth.*
+import com.nlefler.ddpx.connection.message.DDPxError
+import junit.framework.TestCase
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
  * Created by nathan on 1/2/16.
  */
-public class DDPxConnectionTests: TestCase() {
+public class DDPxConnectionTests: TestCase(),  DDPxConnection.DDPxConnectionDelegate {
+    private var noSubLatch: CountDownLatch? = null
+
     @Test
-    public fun stateDuringConnect() {
+    public fun testStateDuringConnect() {
         val latch = CountDownLatch(1)
 
         val conn = DDPxConnection("http://cairo-playground.meteor.com/websocket")
-        assertEquals(conn.state, DDPxConnection.DDPxConnectionState.Unknown)
-        assertFalse(conn.connected)
+        assertThat(conn.state).isEqualTo(DDPxConnection.DDPxConnectionState.Unknown)
+        assertThat(conn.connected).isFalse()
 
         val task = conn.connect()
-        assertEquals(conn.state, DDPxConnection.DDPxConnectionState.Connecting)
+        assertThat(conn.state).isEqualTo(DDPxConnection.DDPxConnectionState.Connecting)
 
         task.continueWith { result ->
-            assertFalse(result.isFaulted)
-            assertEquals(conn.state, DDPxConnection.DDPxConnectionState.Connected)
+            assertThat(result.isFaulted).isFalse()
+            assertThat(conn.state).isEqualTo(DDPxConnection.DDPxConnectionState.Connected)
             latch.countDown()
         }
 
         latch.await(1000000, TimeUnit.SECONDS)
+    }
+
+    @Test
+    public fun testNoSub() {
+        val latch = CountDownLatch(1)
+
+        val conn = DDPxConnection("http://cairo-playground.meteor.com/websocket")
+        conn.delegate = this
+
+        val task = conn.connect()
+
+        task.continueWith { result ->
+            assertThat(result.isFaulted).isFalse()
+            assertThat(conn.state).isEqualTo(DDPxConnection.DDPxConnectionState.Connected)
+
+            noSubLatch = latch
+            conn.sub("fake", null, "id")
+        }
+
+        latch.await(1000000, TimeUnit.SECONDS)
+    }
+
+    override public fun onNoSub(id: String?, error: DDPxError?) {
+        assertThat(id).isNotNull()
+        noSubLatch?.countDown()
+    }
+
+    override public fun onChange(change: DDPxChange) {
+
     }
 }

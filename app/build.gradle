@@ -17,6 +17,10 @@ buildscript {
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+kapt {
+    generateStubs = true
+}
+
 android {
     compileSdkVersion 23
     buildToolsVersion "23.0.1"
@@ -33,6 +37,10 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+
+    sourceSets {
+        androidTest.java.srcDirs += 'src/androidTest/*'
     }
 }
 

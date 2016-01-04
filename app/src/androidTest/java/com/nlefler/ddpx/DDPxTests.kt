@@ -1,9 +1,11 @@
 package com.nlefler.ddpx
 
-import junit.framework.TestCase
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import com.google.common.truth.Truth.*
+import junit.framework.TestCase
+import kotlin.test.*
 
 /**
  * Created by nathan on 1/2/16.
@@ -12,8 +14,9 @@ import java.util.concurrent.TimeUnit
 public class DDPxTests: TestCase() {
 
     @Test
-    public fun testInit() {
+    fun testInit() {
         val ddpx = DDPx("http://cairo-playground.meteor.com/websocket")
+        assertThat(ddpx).isNotNull()
     }
 
     @Test
@@ -22,7 +25,7 @@ public class DDPxTests: TestCase() {
 
         val ddpx = DDPx("http://cairo-playground.meteor.com/websocket")
         ddpx.connect().continueWith { result ->
-            assertFalse(result.isFaulted)
+            assertThat(result.isFaulted).isFalse()
             latch.countDown()
         }
 

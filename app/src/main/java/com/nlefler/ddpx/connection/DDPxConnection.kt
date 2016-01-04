@@ -1,16 +1,21 @@
 package com.nlefler.ddpx.connection
 
+import android.util.Log
 import bolts.Task
 import bolts.TaskCompletionSource
 import com.google.gson.Gson
 import com.koushikdutta.async.http.AsyncHttpClient
 import com.koushikdutta.async.http.WebSocket
+import com.nlefler.ddpx.collection.DDPxChange
 import com.nlefler.ddpx.connection.message.*
+import java.util.*
 
 /**
  * Created by nathan on 1/1/16.
  */
 public class DDPxConnection(val remoteURL: String) {
+    public var delegate: DDPxConnectionDelegate? = null
+
     public val connected: Boolean
         get() = this.state == DDPxConnectionState.Connected
 
@@ -47,8 +52,22 @@ public class DDPxConnection(val remoteURL: String) {
         return connectTask.task
     }
 
+    public fun sub(collection: String, params: String?, id: String) {
+        if (state != DDPxConnectionState.Connected) {
+            return
+        }
+
+        val msg = DDPxSubMessage()
+        msg.collection = collection
+        msg.params = params
+        msg.id = id
+
+        websocket?.send(gson.toJson(msg.messageBody()))
+    }
+
     private fun setupWebsocketHandlers(ws: WebSocket) {
         ws.setStringCallback { str ->
+            Log.d(LOG_TAG, "Got message $str")
             val msg = gson.fromJson(str, DDPxMessage::class.java)
             if (msg.messageName == null) {
                 return@setStringCallback
@@ -72,6 +91,7 @@ public class DDPxConnection(val remoteURL: String) {
             DDPxConnectionState.Connected -> {
                 when (msg) {
                     is DDPxPingMessage -> handlePing(msg)
+                    is DDPxNoSubMessage -> delegate?.onNoSub(msg.id, msg.error)
                 }
             }
             DDPxConnectionState.Disconnected, DDPxConnectionState.Unknown -> {}
@@ -96,10 +116,16 @@ public class DDPxConnection(val remoteURL: String) {
         val pong = DDPxPongMessage()
         pong.id = ping.id
         websocket?.send(gson.toJson(pong))
+        Log.d(LOG_TAG, "Responded to pong ${pong.id}")
     }
 
     public enum class DDPxConnectionState {
         Unknown, Connecting, Connected, Disconnected
+    }
+
+    public interface DDPxConnectionDelegate {
+        public fun onNoSub(id: String?, error: DDPxError?)
+        public fun onChange(change: DDPxChange)
     }
 }
 
