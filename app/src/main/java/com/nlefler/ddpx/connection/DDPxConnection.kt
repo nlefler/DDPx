@@ -11,7 +11,8 @@ import com.nlefler.ddpx.collection.DDPxChange
 import com.nlefler.ddpx.collection.DDPxChanged
 import com.nlefler.ddpx.collection.DDPxRemoved
 import com.nlefler.ddpx.connection.message.*
-import java.util.*
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Created by nathan on 1/1/16.
@@ -32,6 +33,10 @@ public class DDPxConnection(val remoteURL: String) {
     private val gson = Gson()
 
     private var connectTask = TaskCompletionSource<String>()
+
+    private val messageExecutor = Executors.newSingleThreadExecutor()
+    private val delegateExecutor = Executors.newSingleThreadExecutor()
+
 
     public fun connect(): Task<String> {
         when (state) {
@@ -70,15 +75,17 @@ public class DDPxConnection(val remoteURL: String) {
 
     private fun setupWebsocketHandlers(ws: WebSocket) {
         ws.setStringCallback { str ->
-            Log.d(LOG_TAG, "Got message $str")
-            val msg = gson.fromJson(str, DDPxMessage::class.java)
-            if (msg.messageName == null) {
-                return@setStringCallback
-            }
-            val msgType = msgTypes.messageForName(msg.messageName!!) ?: return@setStringCallback
+            messageExecutor.submit {
+                Log.d(LOG_TAG, "Got message $str")
+                val msg = gson.fromJson(str, DDPxMessage::class.java)
+                if (msg.messageName == null) {
+                    return@submit
+                }
+                val msgType = msgTypes.messageForName(msg.messageName!!) ?: return@submit
 
-            val typedMsg = gson.fromJson(str, msgType.java)
-            handleMessage(typedMsg)
+                val typedMsg = gson.fromJson(str, msgType.java)
+                handleMessage(typedMsg)
+            }
         }
     }
 
@@ -96,7 +103,7 @@ public class DDPxConnection(val remoteURL: String) {
                     is DDPxPingMessage -> handlePing(msg)
                     is DDPxNoSubMessage -> handleNoSub(msg)
                     is DDPxAddedMessage, is DDPxChangedMessage, is DDPxRemovedMessage -> handleChangeMessage(msg)
-                    is DDPxReadyMessage -> msg.subs?.forEach { sub -> delegate?.onReady(sub) }
+                    is DDPxReadyMessage -> msg.subs?.forEach { sub -> delegateExecutor.submit({delegate?.onReady(sub)}) }
                 }
             }
             DDPxConnectionState.Disconnected, DDPxConnectionState.Unknown -> {}
@@ -118,51 +125,58 @@ public class DDPxConnection(val remoteURL: String) {
     }
 
     private fun handlePing(ping: DDPxPingMessage) {
-        val pong = DDPxPongMessage()
-        pong.id = ping.id
-        websocket?.send(gson.toJson(pong.messageBody()))
-        Log.d(LOG_TAG, "Responded to pong id:${pong.id}")
+        delegateExecutor.submit({
+            val pong = DDPxPongMessage()
+            pong.id = ping.id
+            websocket?.send(gson.toJson(pong.messageBody()))
+            Log.d(LOG_TAG, "Responded to pong id:${pong.id}")
+        })
     }
 
     private fun handleNoSub(msg: DDPxNoSubMessage) {
-        val id = msg.id ?: return
-        delegate?.onNoSub(id, msg.error)
+        delegateExecutor.submit({
+            val id = msg.id ?: return@submit
+            delegate?.onNoSub(id, msg.error)
+        })
     }
 
     private fun handleChangeMessage(msg: DDPxMessage) {
+        delegateExecutor.submit({
 
-        when (msg) {
-            is DDPxAddedMessage -> {
-                val collection = msg.collection
-                val id = msg.id
-                if (collection == null || id == null) {
-                    return
-                }
+            when (msg) {
+                is DDPxAddedMessage -> {
+                    val collection = msg.collection
+                    val id = msg.id
+                    if (collection == null || id == null) {
+                        return@submit
+                    }
 
-                val add = DDPxAdded(collection, id)
-                delegate?.onChange(add)
-            }
-            is DDPxChangedMessage -> {
-                val collection = msg.collection
-                val id = msg.id
-                if (collection == null || id == null) {
-                    return
+                    val add = DDPxAdded(collection, id)
+                    delegate?.onChange(add)
                 }
-                val changed = DDPxChanged(collection, id, msg.fields, msg.cleared)
-                delegate?.onChange(changed)
-            }
-            is DDPxRemovedMessage -> {
-                val collection = msg.collection
-                val id = msg.id
-                if (collection == null || id == null) {
-                    return
+                is DDPxChangedMessage -> {
+                    val collection = msg.collection
+                    val id = msg.id
+                    if (collection == null || id == null) {
+                        return@submit
+                    }
+                    val changed = DDPxChanged(collection, id, msg.fields, msg.cleared)
+                    delegate?.onChange(changed)
                 }
+                is DDPxRemovedMessage -> {
+                    val collection = msg.collection
+                    val id = msg.id
+                    if (collection == null || id == null) {
+                        return@submit
+                    }
 
-                val removed = DDPxRemoved(collection, id)
-                delegate?.onChange(removed)
+                    val removed = DDPxRemoved(collection, id)
+                    delegate?.onChange(removed)
+                }
+                else -> {
+                }
             }
-            else -> {}
-        }
+        })
     }
 
     public enum class DDPxConnectionState {

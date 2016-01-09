@@ -17,7 +17,7 @@ import kotlin.test.*
  */
 
 public class DDPxTests: TestCase() {
-    val SERVER_URL = "http://10.65.106.103:3000/websocket"//"http://cairo-playground.meteor.com/websocket"
+    val SERVER_URL = "http://cairo-playground.meteor.com/websocket"
     var ddpx: DDPx? = null
 
     @Before
@@ -50,28 +50,33 @@ public class DDPxTests: TestCase() {
 
     @Test
     public fun testSubscribe() {
-        val latch = CountDownLatch(1)
+        var latch = CountDownLatch(1)
 
         var gotNext = false
 
         ddpx?.connect()?.continueWith { result ->
             assertThat(result.isFaulted).isFalse()
-
-            ddpx?.sub("places", null)?.subscribe {object: Observer<DDPxChange> {
-                override fun onNext(t: DDPxChange?) {
-                    gotNext = true
-                    latch.countDown()
-                }
-
-                override fun onError(e: Throwable?) {
-                    throw UnsupportedOperationException()
-                }
-
-                override fun onCompleted() {
-                    throw UnsupportedOperationException()
-                }
-            }}
+            latch.countDown()
         }
+        latch.await(1000000, TimeUnit.SECONDS)
+        latch = CountDownLatch(1)
+
+
+        val observer = object: Observer<DDPxChange> {
+            override fun onNext(t: DDPxChange?) {
+                gotNext = true
+                latch.countDown()
+            }
+
+            override fun onError(e: Throwable?) {
+                throw UnsupportedOperationException()
+            }
+
+            override fun onCompleted() {
+                throw UnsupportedOperationException()
+            }
+        }
+        ddpx?.sub("places", null)?.subscribe(observer)
 
         latch.await(1000000, TimeUnit.SECONDS)
         assertThat(gotNext).isTrue()

@@ -4,7 +4,6 @@ import com.nlefler.ddpx.collection.DDPxChange
 import org.junit.Test
 import com.google.common.truth.Truth.*
 import com.nlefler.ddpx.connection.message.DDPxError
-import com.nlefler.ddpx.connection.message.DDPxNoSubMessage
 import junit.framework.TestCase
 import org.junit.After
 import org.junit.Before
@@ -16,7 +15,7 @@ import java.util.concurrent.TimeUnit
  * Created by nathan on 1/2/16.
  */
 public class DDPxConnectionTests: TestCase(),  DDPxConnection.DDPxConnectionDelegate {
-    val SERVER_URL = "http://10.65.106.103:3000/websocket"//"http://cairo-playground.meteor.com/websocket"
+    val SERVER_URL = "http://cairo-playground.meteor.com/websocket"
     
     var noSubBlock: ((String, DDPxError?) -> Unit)? = null
     var onChangeBlock: ((DDPxChange) -> Unit)? = null
