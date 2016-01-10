@@ -1,4 +1,4 @@
-package com.nlefler.ddpx.connection.message
+package com.nlefler.ddpx.error
 
 /**
  * Created by nathan on 1/3/16.

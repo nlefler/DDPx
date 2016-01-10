@@ -9,8 +9,6 @@ import junit.framework.TestCase
 import org.junit.After
 import org.junit.Before
 import rx.Observer
-import rx.Subscriber
-import kotlin.test.*
 
 /**
  * Created by nathan on 1/2/16.
@@ -80,5 +78,50 @@ public class DDPxTests: TestCase() {
 
         latch.await(1000000, TimeUnit.SECONDS)
         assertThat(gotNext).isTrue()
+    }
+
+    @Test
+    public fun testMethod() {
+        var latch = CountDownLatch(1)
+
+        var gotNext = false
+
+        ddpx?.connect()?.continueWith { result ->
+            assertThat(result.isFaulted).isFalse()
+            latch.countDown()
+        }
+        latch.await(1000000, TimeUnit.SECONDS)
+        latch = CountDownLatch(1)
+
+
+        val observer = object: Observer<DDPxChange> {
+            override fun onNext(t: DDPxChange?) {
+                gotNext = true
+                latch.countDown()
+            }
+
+            override fun onError(e: Throwable?) {
+                throw UnsupportedOperationException()
+            }
+
+            override fun onCompleted() {
+                throw UnsupportedOperationException()
+            }
+        }
+        ddpx?.sub("places", null)?.subscribe(observer)
+
+        latch.await(1000000, TimeUnit.SECONDS)
+        assertThat(gotNext).isTrue()
+
+        var gotResult = false
+        latch = CountDownLatch(1)
+
+        val placeName = "testPlace${Math.random()}"
+        ddpx?.method("addPlace", arrayOf(placeName), null)?.continueWith {
+            gotResult = true
+            latch.countDown()
+        }
+        latch.await(1000000, TimeUnit.SECONDS)
+        assertThat(gotResult).isTrue()
     }
 }

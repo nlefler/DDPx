@@ -16,7 +16,10 @@ public class DDPxMessageTypes {
             Pair(DDPxAddedMessage().messageName!!, DDPxAddedMessage::class),
             Pair(DDPxChangedMessage().messageName!!, DDPxChangedMessage::class),
             Pair(DDPxRemovedMessage().messageName!!, DDPxRemovedMessage::class),
-            Pair(DDPxReadyMessage().messageName!!, DDPxReadyMessage::class)
+            Pair(DDPxReadyMessage().messageName!!, DDPxReadyMessage::class),
+            Pair(DDPxUnSubMessage().messageName!!, DDPxUnSubMessage::class),
+            Pair(DDPxResultMessage().messageName!!, DDPxResultMessage::class),
+            Pair(DDPxUpdatedMessage().messageName!!, DDPxUpdatedMessage::class)
     )
 
     public fun messageForName(msgType: String): KClass<out DDPxMessage>? {

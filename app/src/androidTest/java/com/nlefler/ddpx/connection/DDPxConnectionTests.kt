@@ -3,7 +3,7 @@ package com.nlefler.ddpx.connection
 import com.nlefler.ddpx.collection.DDPxChange
 import org.junit.Test
 import com.google.common.truth.Truth.*
-import com.nlefler.ddpx.connection.message.DDPxError
+import com.nlefler.ddpx.error.DDPxError
 import junit.framework.TestCase
 import org.junit.After
 import org.junit.Before
@@ -123,5 +123,11 @@ public class DDPxConnectionTests: TestCase(),  DDPxConnection.DDPxConnectionDele
         if (block != null) {
             block(sub)
         }
+    }
+
+    override fun onMethodResult(id: String, result: String?, error: DDPxError?) {
+    }
+
+    override fun onWritesUpdate(ids: Array<String>) {
     }
 }

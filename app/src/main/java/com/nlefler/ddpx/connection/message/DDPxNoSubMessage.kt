@@ -1,5 +1,7 @@
 package com.nlefler.ddpx.connection.message
 
+import com.nlefler.ddpx.error.DDPxError
+
 /**
  * Created by nathan on 1/3/16.
  */

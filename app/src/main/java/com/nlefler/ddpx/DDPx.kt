@@ -2,14 +2,17 @@ package com.nlefler.ddpx
 
 import android.util.Log
 import bolts.Task
+import bolts.TaskCompletionSource
 import com.nlefler.ddpx.collection.DDPxChange
 import com.nlefler.ddpx.connection.DDPxConnection
-import com.nlefler.ddpx.connection.message.DDPxError
+import com.nlefler.ddpx.error.DDPxError
+import com.nlefler.ddpx.method.DDPxMethodResult
 import rx.Observable
 import rx.Subscriber
 import rx.Observer
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 
 /**
@@ -19,8 +22,12 @@ public class DDPx(val remoteURL: String): DDPxConnection.DDPxConnectionDelegate 
 
     private var connection: DDPxConnection? = null
 
-    private var subsForCollection = ConcurrentHashMap<String, Obsv>()
-    private var subsForId = ConcurrentHashMap<String, Obsv>()
+    private val subscriptions = HashMap<String, Subscription>()
+    private val collectionObservables = HashMap<String, Obsv>()
+
+    private val methodTasks  = HashMap<String, TaskCompletionSource<DDPxMethodResult>>()
+
+    private var executor = Executors.newSingleThreadExecutor()
 
     public fun connect(): Task<String> {
         connection = DDPxConnection(remoteURL)
@@ -33,57 +40,82 @@ public class DDPx(val remoteURL: String): DDPxConnection.DDPxConnectionDelegate 
     }
 
     public fun sub(collection: String, params: String?): Observable<DDPxChange> {
-        val currObsv = subsForCollection[collection]
-        if (currObsv != null && !currObsv.isErrored && !currObsv.isComplete && currObsv.observable != null) {
-            return currObsv.observable!!
-        }
+        var returnObservable: Observable<DDPxChange>? = null
+        executor.submit({
+            val id = UUID.randomUUID().toString()
+            val observers = ArrayList<Observer<DDPxChange>>()
 
-        val id = UUID.randomUUID().toString()
-        val observers = ArrayList<Observer<DDPxChange>>()
+            val subscription = Subscription(collection, params, id)
+            subscriptions.put(id, subscription)
 
-        val obsv = Obsv(collection, id, observers)
+            val obsv = Obsv(observers)
 
-        val observable = Observable.create<DDPxChange> { subscriber ->
-            if (obsv.isComplete) {
-                subscriber.onCompleted()
-                return@create
+            val observable = Observable.create<DDPxChange> { subscriber ->
+                if (obsv.isComplete) {
+                    subscriber.onCompleted()
+                    return@create
+                }
+                if (obsv.isErrored) {
+                    subscriber.onError(obsv.error)
+                    return@create
+                }
+                observers.add(subscriber as Observer<DDPxChange>)
             }
-            if (obsv.isErrored) {
-                subscriber.onError(obsv.error)
-                return@create
-            }
-            observers.add(subscriber as Observer<DDPxChange>)
-        }
-        obsv.observable = observable
+            obsv.observable = observable
 
-        synchronized(subsForCollection) {
-            subsForCollection.put(collection, obsv)
-        }
-        synchronized(subsForId) {
-            subsForId.put(id, obsv)
-        }
-        connection?.sub(collection, params, id)
+            collectionObservables.put(collection, obsv)
 
-        return observable
+            connection?.sub(collection, params, id)
+
+            returnObservable = observable
+            return@submit
+        }).get()
+
+        return returnObservable!!
+    }
+
+    public fun unsub(collection: String, params: String?) {
+        var sub: Subscription? = null
+        executor.submit {
+            subscriptions.forEach{ entry -> sub = if (entry.value.collection.equals(collection) &&
+                    entry.value.params.equals(params)) entry.value else null }
+            subscriptions.remove(sub?.id)
+        }.get()
+        val id = sub?.id ?: return
+        connection?.unSub(id)
+    }
+
+    public fun method(method: String, params: Array<String>?, randomSeed: String?): Task<DDPxMethodResult> {
+        val task = TaskCompletionSource<DDPxMethodResult>()
+        executor.submit {
+            val id = UUID.randomUUID().toString()
+            methodTasks.put(id, task)
+            connection?.method(method, params, id, randomSeed)
+        }.get()
+
+        return task.task
     }
 
     // DDPxConnection.DDPxConnectionDelegate
     override public fun onNoSub(id: String, error: DDPxError?) {
-        val obsv: Obsv = subsForId[id] ?: return
-        subsForId.remove(id)
-        subsForCollection[obsv.collection]
+        executor.submit({
+            subscriptions.remove(id)
 
-        obsv.isErrored = true
-        val throwable = Throwable(error?.message)
-        obsv.error = throwable
-        obsv.observers.forEach { observer -> observer.onError(throwable) }
+            // TODO Error
+        })
     }
 
     override public fun onChange(change: DDPxChange) {
-        val obsv = subsForCollection[change.collection] ?: return
+        var obsv: Obsv? = null
+        executor.submit({
+            obsv = collectionObservables[change.collection]
+        }).get()
+        if (obsv == null) {
+            return
+        }
 
-        val observers = obsv.observers
-        val cache = obsv.changeCache
+        val observers = obsv?.observers ?: return
+        val cache = obsv?.changeCache ?: return
 
         var noObservers = false
         var sendCache = false
@@ -100,12 +132,12 @@ public class DDPx(val remoteURL: String): DDPxConnection.DDPxConnectionDelegate 
         else if (sendCache) {
             synchronized(cache) {
                 cache.forEach { cacheChange ->
-                    obsv.observers.forEach { observer -> observer.onNext(change) }
+                    observers.forEach { observer -> observer.onNext(change) }
                 }
                 cache.clear()
             }
         }
-        obsv.observers.forEach { observer ->
+        observers.forEach { observer ->
             try {
                 observer.onNext(change)
             } catch (e: Throwable) {
@@ -118,8 +150,19 @@ public class DDPx(val remoteURL: String): DDPxConnection.DDPxConnectionDelegate 
 
     }
 
-    private data class Obsv(val collection: String, val id: String,
-                            val observers: MutableList<Observer<DDPxChange>>) {
+    override fun onMethodResult(id: String, result: String?, error: DDPxError?) {
+        executor.submit {
+            val task = methodTasks.remove(id)
+            task?.trySetResult(DDPxMethodResult(result, error))
+        }
+    }
+
+    override fun onWritesUpdate(ids: Array<String>) {
+    }
+
+    private data class Subscription(val collection: String, val params: String?, val id: String) {}
+
+    private data class Obsv(val observers: MutableList<Observer<DDPxChange>>) {
         var observable: Observable<DDPxChange>? = null
         var isComplete: Boolean = false
         var isErrored: Boolean = false

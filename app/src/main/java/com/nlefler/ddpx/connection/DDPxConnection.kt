@@ -11,6 +11,7 @@ import com.nlefler.ddpx.collection.DDPxChange
 import com.nlefler.ddpx.collection.DDPxChanged
 import com.nlefler.ddpx.collection.DDPxRemoved
 import com.nlefler.ddpx.connection.message.*
+import com.nlefler.ddpx.error.DDPxError
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -73,6 +74,31 @@ public class DDPxConnection(val remoteURL: String) {
         websocket?.send(gson.toJson(msg.messageBody()))
     }
 
+    public fun unSub(id: String) {
+        if (state != DDPxConnectionState.Connected) {
+            return
+        }
+
+        val msg = DDPxUnSubMessage()
+        msg.id = id
+
+        websocket?.send(gson.toJson(msg.messageBody()))
+    }
+
+    public fun method(method: String, params: Array<String>?, id: String, randomSeed: String?) {
+        if (state != DDPxConnectionState.Connected) {
+            return
+        }
+
+        val msg = DDPxMethodMessage()
+        msg.method = method
+        msg.params = params
+        msg.id = id
+        msg.randomSeed = randomSeed
+
+        websocket?.send(gson.toJson(msg.messageBody()))
+    }
+
     private fun setupWebsocketHandlers(ws: WebSocket) {
         ws.setStringCallback { str ->
             messageExecutor.submit {
@@ -104,6 +130,8 @@ public class DDPxConnection(val remoteURL: String) {
                     is DDPxNoSubMessage -> handleNoSub(msg)
                     is DDPxAddedMessage, is DDPxChangedMessage, is DDPxRemovedMessage -> handleChangeMessage(msg)
                     is DDPxReadyMessage -> msg.subs?.forEach { sub -> delegateExecutor.submit({delegate?.onReady(sub)}) }
+                    is DDPxResultMessage -> delegateExecutor.submit { delegate?.onMethodResult(msg.id, msg.result, msg.error) }
+                    is DDPxUpdatedMessage -> delegateExecutor.submit { delegate?.onWritesUpdate(msg.methods) }
                 }
             }
             DDPxConnectionState.Disconnected, DDPxConnectionState.Unknown -> {}
@@ -187,6 +215,8 @@ public class DDPxConnection(val remoteURL: String) {
         public fun onNoSub(id: String, error: DDPxError?)
         public fun onChange(change: DDPxChange)
         public fun onReady(sub: String)
+        public fun onMethodResult(id: String, result: String?, error: DDPxError?)
+        public fun onWritesUpdate(ids: Array<String>)
     }
 }
 
