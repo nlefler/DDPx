@@ -116,8 +116,9 @@ public class DDPxTests: TestCase() {
         val methodLatch = CountDownLatch(1)
 
         val placeName = "testPlace${Math.random()}"
-        ddpx?.method("addPlace", arrayOf(placeName), null)?.continueWith {
-            gotResult = true
+        ddpx?.method("addPlace", arrayOf(placeName), null)?.continueWith { task ->
+            val result = task.result
+            gotResult = result.error == null
             methodLatch.countDown()
         }
         methodLatch.await(1000000, TimeUnit.SECONDS)
