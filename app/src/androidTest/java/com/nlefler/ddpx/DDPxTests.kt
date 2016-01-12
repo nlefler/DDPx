@@ -82,22 +82,21 @@ public class DDPxTests: TestCase() {
 
     @Test
     public fun testMethod() {
-        var latch = CountDownLatch(1)
+        val connectLatch = CountDownLatch(1)
 
         var gotNext = false
 
         ddpx?.connect()?.continueWith { result ->
             assertThat(result.isFaulted).isFalse()
-            latch.countDown()
+            connectLatch.countDown()
         }
-        latch.await(1000000, TimeUnit.SECONDS)
-        latch = CountDownLatch(1)
+        connectLatch.await(1000000, TimeUnit.SECONDS)
 
-
+        val subLatch = CountDownLatch(1)
         val observer = object: Observer<DDPxChange> {
             override fun onNext(t: DDPxChange?) {
                 gotNext = true
-                latch.countDown()
+                subLatch.countDown()
             }
 
             override fun onError(e: Throwable?) {
@@ -110,18 +109,18 @@ public class DDPxTests: TestCase() {
         }
         ddpx?.sub("places", null)?.subscribe(observer)
 
-        latch.await(1000000, TimeUnit.SECONDS)
+        subLatch.await(1000000, TimeUnit.SECONDS)
         assertThat(gotNext).isTrue()
 
         var gotResult = false
-        latch = CountDownLatch(1)
+        val methodLatch = CountDownLatch(1)
 
         val placeName = "testPlace${Math.random()}"
         ddpx?.method("addPlace", arrayOf(placeName), null)?.continueWith {
             gotResult = true
-            latch.countDown()
+            methodLatch.countDown()
         }
-        latch.await(1000000, TimeUnit.SECONDS)
+        methodLatch.await(1000000, TimeUnit.SECONDS)
         assertThat(gotResult).isTrue()
     }
 }
