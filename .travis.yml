@@ -31,7 +31,7 @@ git:
     submodules: false
 
 before_install:
-	- echo "Remove unused android components to gain disk space and avoid related issues"; export IMGS=${ANDROID_HOME}system-images; rm -R ${IMGS}/android-15; rm -R ${IMGS}/android-16; rm -R ${IMGS}/android-17; rm -R ${IMGS}/android-18; export PFRM=${ANDROID_HOME}platforms; rm -R ${PFRM}/android-15; rm -R ${PFRM}/android-16; rm -R ${PFRM}/android-17; rm -R ${PFRM}/android-18; || true
+        - echo "Remove unused android components to gain disk space and avoid related issues"; export IMGS=${ANDROID_HOME}system-images; rm -R ${IMGS}/android-15; rm -R ${IMGS}/android-16; rm -R ${IMGS}/android-17; rm -R ${IMGS}/android-18; export PFRM=${ANDROID_HOME}platforms; rm -R ${PFRM}/android-15; rm -R ${PFRM}/android-16; rm -R ${PFRM}/android-17; rm -R ${PFRM}/android-18; || true
 
 before_script:
        - echo no | android create avd --force -n test -t android-23 --abi armeabi-v7a
