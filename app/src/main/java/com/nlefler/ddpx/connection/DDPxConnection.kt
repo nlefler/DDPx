@@ -179,7 +179,7 @@ public class DDPxConnection(val remoteURL: String) {
                         return@submit
                     }
 
-                    val add = DDPxAdded(collection, id)
+                    val add = DDPxAdded(collection, id, msg.fields)
                     delegate?.onChange(add)
                 }
                 is DDPxChangedMessage -> {
