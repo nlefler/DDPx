@@ -30,6 +30,9 @@ public class DDPx(val remoteURL: String): DDPxConnection.DDPxConnectionDelegate 
     private var executor = Executors.newSingleThreadExecutor()
 
     public fun connect(): Task<String> {
+        if (connection?.connected ?: false) {
+            return Task.forError(Exception("Already connected with session: ${connection?.session}"))
+        }
         connection = DDPxConnection(remoteURL)
         connection?.delegate = this
         return connection!!.connect()
